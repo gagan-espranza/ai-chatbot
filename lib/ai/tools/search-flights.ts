@@ -1,6 +1,57 @@
 import { tool } from 'ai';
 import { z } from 'zod';
-import { serpApiService, findAirportCode } from '@/lib/services/serpapi';
+import { serpApiService, findAirportCode, type Flight } from '@/lib/services/serpapi';
+
+// Helper function to filter flights by airline
+function filterFlightsByAirline(flights: Flight[], airlineName: string): Flight[] {
+  const normalizedAirlineName = airlineName.toLowerCase();
+  
+  return flights.filter(flight => {
+    // Check the main airline property
+    const mainAirline = (flight.airline || '').toLowerCase();
+    
+    // For multi-leg flights, check all segments
+    const segmentAirlines = flight.flights?.map(segment => 
+      (segment.airline || '').toLowerCase()
+    ) || [];
+    
+    // Check various airline name formats
+    const airlineMatches = [
+      mainAirline.includes(normalizedAirlineName),
+      mainAirline.includes(normalizedAirlineName.replace(' ', '')),
+      segmentAirlines.some(airline => 
+        airline.includes(normalizedAirlineName) || 
+        airline.includes(normalizedAirlineName.replace(' ', ''))
+      )
+    ];
+    
+    // Also check for common airline codes/abbreviations
+    const airlineCodes: Record<string, string[]> = {
+      'singapore': ['singapore airlines', 'sq'],
+      'emirates': ['emirates', 'ek'],
+      'british airways': ['british airways', 'ba'],
+      'air india': ['air india', 'ai'],
+      'thai': ['thai', 'tg', 'thai airways'],
+      'cathay': ['cathay', 'cx', 'cathay pacific'],
+      'qantas': ['qantas', 'qf'],
+      'lufthansa': ['lufthansa', 'lh'],
+      'klm': ['klm', 'kl'],
+      'air france': ['air france', 'af'],
+    };
+    
+    const codeMatches = Object.entries(airlineCodes).some(([key, codes]) => {
+      if (normalizedAirlineName.includes(key)) {
+        return codes.some(code => 
+          mainAirline.includes(code) || 
+          segmentAirlines.some(airline => airline.includes(code))
+        );
+      }
+      return false;
+    });
+    
+    return airlineMatches.some(Boolean) || codeMatches;
+  });
+}
 
 // Helper function to convert travel class string to number
 function convertTravelClass(travelClass: 'economy' | 'premium_economy' | 'business' | 'first'): 1 | 2 | 3 | 4 {
@@ -155,7 +206,7 @@ Once configured, I'll be able to search real flights with pricing!`
         bestFlights: flightResults.best_flights?.slice(0, 3), // Limit to top 3
         otherFlights: flightResults.other_flights?.slice(0, 5), // Limit to top 5
         totalResults: (flightResults.best_flights?.length || 0) + (flightResults.other_flights?.length || 0),
-        searchUrl: flightResults.search_metadata.google_flights_url,
+        searchUrl: flightResults.search_metadata?.google_flights_url || '#',
       };
     } catch (error) {
       console.error('Flight search error:', error);
@@ -180,6 +231,62 @@ Once configured, I'll be able to search real flights with pricing!`
       
       return {
         error: 'Sorry, I encountered an error while searching for flights. Please try again or check your search parameters.',
+        details: error instanceof Error ? error.message : 'Unknown error'
+      };
+    }
+  }
+});
+
+export const filterFlightsByAirlineTool = tool({
+  description: 'Filter flight search results by a specific airline. Use this after getting flight search results when user requests specific airlines.',
+  parameters: z.object({
+    airlineName: z.string().describe('Name of the airline to filter by (e.g., "Singapore Airlines", "Emirates", "Thai Airways")'),
+    flightData: z.any().describe('The flight search results data from the previous search'),
+  }),
+  execute: async ({ airlineName, flightData }) => {
+    try {
+      const { bestFlights = [], otherFlights = [] } = flightData;
+      
+      // Filter both best and other flights
+      const filteredBestFlights = filterFlightsByAirline(bestFlights, airlineName);
+      const filteredOtherFlights = filterFlightsByAirline(otherFlights, airlineName);
+      
+      const totalFiltered = filteredBestFlights.length + filteredOtherFlights.length;
+      
+      if (totalFiltered === 0) {
+        // Get unique airlines from all flights for suggestions
+        const allFlights = [...bestFlights, ...otherFlights];
+        const availableAirlines = [...new Set(
+          allFlights.map(flight => {
+            // Get airline from main flight or first segment
+            return flight.airline || flight.flights?.[0]?.airline || 'Unknown Airline';
+          }).filter(airline => airline !== 'Unknown Airline')
+        )];
+        
+        return {
+          success: false,
+          message: `No flights found for "${airlineName}".`,
+          availableAirlines,
+          suggestion: `Available airlines in your search results: ${availableAirlines.join(', ')}`
+        };
+      }
+      
+      return {
+        success: true,
+        message: `Found ${totalFiltered} flights with ${airlineName}`,
+        searchParameters: flightData.searchParameters,
+        priceInsights: flightData.priceInsights,
+        bestFlights: filteredBestFlights,
+        otherFlights: filteredOtherFlights,
+        totalResults: totalFiltered,
+        searchUrl: flightData.searchUrl,
+        filterApplied: airlineName
+      };
+    } catch (error) {
+      console.error('Airline filtering error:', error);
+      return {
+        success: false,
+        error: 'Failed to filter flights by airline',
         details: error instanceof Error ? error.message : 'Unknown error'
       };
     }

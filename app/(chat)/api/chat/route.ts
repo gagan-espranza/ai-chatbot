@@ -19,7 +19,7 @@ import {
 } from '@/lib/db/queries';
 import { generateUUID, getTrailingMessageId } from '@/lib/utils';
 import { generateTitleFromUserMessage } from '../../actions';
-import { searchFlights } from '@/lib/ai/tools/search-flights';
+import { searchFlights, filterFlightsByAirlineTool } from '@/lib/ai/tools/search-flights';
 import { isProductionEnvironment } from '@/lib/constants';
 import { myProvider } from '@/lib/ai/providers';
 import { entitlementsByUserType } from '@/lib/ai/entitlements';
@@ -153,11 +153,13 @@ export async function POST(request: Request) {
               ? []
               : [
                   'searchFlights',
+                  'filterFlightsByAirlineTool',
                 ],
           experimental_transform: smoothStream({ chunking: 'word' }),
           experimental_generateMessageId: generateUUID,
           tools: {
             searchFlights,
+            filterFlightsByAirlineTool,
           },
           onFinish: async ({ response }) => {
             if (session.user?.id) {
@@ -225,6 +227,9 @@ export async function POST(request: Request) {
     if (error instanceof ChatSDKError) {
       return error.toResponse();
     }
+    
+    console.error('Unexpected error in chat route:', error);
+    return new Response('Internal server error', { status: 500 });
   }
 }
 

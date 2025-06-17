@@ -165,7 +165,7 @@ const PurePreviewMessage = ({
                     <div
                       key={toolCallId}
                       className={cx({
-                        skeleton: ['getWeather', 'searchFlights'].includes(toolName),
+                        skeleton: ['getWeather', 'searchFlights', 'filterFlightsByAirlineTool'].includes(toolName),
                       })}
                     >
                       {toolName === 'getWeather' ? (
@@ -173,6 +173,10 @@ const PurePreviewMessage = ({
                       ) : toolName === 'searchFlights' ? (
                         <div className="p-4 bg-gray-50 rounded-lg">
                           <div className="text-sm text-gray-600">Searching for flights...</div>
+                        </div>
+                      ) : toolName === 'filterFlightsByAirlineTool' ? (
+                        <div className="p-4 bg-blue-50 rounded-lg">
+                          <div className="text-sm text-blue-600">Filtering flights by airline...</div>
                         </div>
                       ) : toolName === 'createDocument' ? (
                         <DocumentPreview isReadonly={isReadonly} args={args} />
@@ -216,6 +220,25 @@ const PurePreviewMessage = ({
                             <div className="text-red-600 text-sm mt-1">{result.error}</div>
                             {result.suggestions && (
                               <div className="text-red-600 text-sm mt-2">{result.suggestions}</div>
+                            )}
+                          </div>
+                        )
+                      ) : toolName === 'filterFlightsByAirlineTool' ? (
+                        result.success ? (
+                          <FlightResults
+                            searchParameters={result.searchParameters}
+                            priceInsights={result.priceInsights}
+                            bestFlights={result.bestFlights}
+                            otherFlights={result.otherFlights}
+                            totalResults={result.totalResults}
+                            searchUrl={result.searchUrl}
+                          />
+                        ) : (
+                          <div className="p-4 bg-red-50 border border-red-200 rounded-lg">
+                            <div className="text-red-800 font-medium">Airline filtering result</div>
+                            <div className="text-red-600 text-sm mt-1">{result.message}</div>
+                            {result.suggestion && (
+                              <div className="text-red-600 text-sm mt-2">{result.suggestion}</div>
                             )}
                           </div>
                         )

@@ -11,8 +11,10 @@ interface FlightCardProps {
 }
 
 export function FlightCard({ flight, showPrice = true, isBestValue = false }: FlightCardProps) {
-  // Handle nested SerpApi structure - extract first flight segment if exists
-  const flightInfo = flight.flights && flight.flights.length > 0 ? flight.flights[0] : flight;
+  // Handle nested SerpApi structure - get first and last segments for multi-leg flights
+  const firstLeg = flight.flights && flight.flights.length > 0 ? flight.flights[0] : flight;
+  const lastLeg = flight.flights && flight.flights.length > 1 ? flight.flights[flight.flights.length - 1] : firstLeg;
+  const isMultiLeg = flight.flights && flight.flights.length > 1;
   
   const formatDuration = (minutes: number) => {
     const hours = Math.floor(minutes / 60);
@@ -73,9 +75,9 @@ export function FlightCard({ flight, showPrice = true, isBestValue = false }: Fl
         {/* Left */}
         <div className="flex items-center gap-2">
           <div>
-            {(flight.airline_logo || flightInfo.airline_logo) ? (
+            {(flight.airline_logo || firstLeg.airline_logo) ? (
               <Image 
-                src={flight.airline_logo || flightInfo.airline_logo || ''} 
+                src={flight.airline_logo || firstLeg.airline_logo || ''} 
                 alt="airline" 
                 width={32} 
                 height={32}
@@ -86,12 +88,12 @@ export function FlightCard({ flight, showPrice = true, isBestValue = false }: Fl
               />
             ) : (
               <div className="w-8 h-8 bg-gray-200 rounded flex items-center justify-center text-xs text-gray-500">
-                {(flightInfo.airline || flight.airline || 'UK').slice(0, 2).toUpperCase()}
+                {(firstLeg.airline || flight.airline || 'UK').slice(0, 2).toUpperCase()}
               </div>
             )}
           </div>
           <div>
-            {flightInfo.airline || flight.airline || 'Unknown Airline'} / {flightInfo.flight_number || flight.flight_number || 'N/A'}
+            {firstLeg.airline || flight.airline || 'Unknown Airline'} / {isMultiLeg ? `${flight.flights?.length} stops` : firstLeg.flight_number || flight.flight_number || 'N/A'}
           </div>
         </div>
         
@@ -116,33 +118,35 @@ export function FlightCard({ flight, showPrice = true, isBestValue = false }: Fl
         {/* Departure */}
         <div className="flex flex-col gap-1">
           <div className="text-base font-semibold">
-            {flightInfo.departure_airport?.time ? formatTime(flightInfo.departure_airport.time) : '--:--'} - {flightInfo.departure_airport?.time ? formatDate(flightInfo.departure_airport.time) : 'N/A'}
+            {firstLeg.departure_airport?.time ? formatTime(firstLeg.departure_airport.time) : '--:--'} - {firstLeg.departure_airport?.time ? formatDate(firstLeg.departure_airport.time) : 'N/A'}
           </div>
           <div className="text-sm text-neutral-400">
-            {flightInfo.departure_airport?.name || 'Unknown'} ({flightInfo.departure_airport?.id || 'N/A'})
+            {firstLeg.departure_airport?.name || 'Unknown'} ({firstLeg.departure_airport?.id || 'N/A'})
           </div>
         </div>
         
         {/* Duration */}
         <div className="flex-1 flex flex-col gap-1 items-center px-40">
           <div className="text-base font-semibold">
-            {formatDuration(flightInfo.duration || flight.total_duration || flight.duration || 0)}
+            {formatDuration(flight.total_duration || 0)}
           </div>
           <div className="w-full flex flex-row gap-1 items-center">
             <div className="h-px w-full bg-gradient-to-r from-white to-neutral-300 rounded-full" />
             <div className="size-1 bg-neutral-800 rounded-full shrink-0" />
             <div className="h-px w-full bg-gradient-to-r from-neutral-300 to-white rounded-full" />
           </div>
-          <div className="text-sm text-neutral-400">Direct</div>
+          <div className="text-sm text-neutral-400">
+            {isMultiLeg && flight.flights ? `${flight.flights.length - 1} stop${flight.flights.length === 2 ? '' : 's'}` : 'Direct'}
+          </div>
         </div>
         
         {/* Arrival */}
         <div className="flex flex-col gap-1 items-end">
           <div className="text-base font-semibold">
-            {flightInfo.arrival_airport?.time ? formatTime(flightInfo.arrival_airport.time) : '--:--'} - {flightInfo.arrival_airport?.time ? formatDate(flightInfo.arrival_airport.time) : 'N/A'}
+            {lastLeg.arrival_airport?.time ? formatTime(lastLeg.arrival_airport.time) : '--:--'} - {lastLeg.arrival_airport?.time ? formatDate(lastLeg.arrival_airport.time) : 'N/A'}
           </div>
           <div className="text-sm text-neutral-400">
-            {flightInfo.arrival_airport?.name || 'Unknown'} ({flightInfo.arrival_airport?.id || 'N/A'})
+            {lastLeg.arrival_airport?.name || 'Unknown'} ({lastLeg.arrival_airport?.id || 'N/A'})
           </div>
         </div>
       </div>
