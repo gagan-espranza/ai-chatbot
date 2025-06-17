@@ -11,6 +11,7 @@ import { Markdown } from './markdown';
 import { MessageActions } from './message-actions';
 import { PreviewAttachment } from './preview-attachment';
 import { Weather } from './weather';
+import { FlightResults } from './ui/flight-results';
 import equal from 'fast-deep-equal';
 import { cn, sanitizeText } from '@/lib/utils';
 import { Button } from './ui/button';
@@ -164,11 +165,15 @@ const PurePreviewMessage = ({
                     <div
                       key={toolCallId}
                       className={cx({
-                        skeleton: ['getWeather'].includes(toolName),
+                        skeleton: ['getWeather', 'searchFlights'].includes(toolName),
                       })}
                     >
                       {toolName === 'getWeather' ? (
                         <Weather />
+                      ) : toolName === 'searchFlights' ? (
+                        <div className="p-4 bg-gray-50 rounded-lg">
+                          <div className="text-sm text-gray-600">Searching for flights...</div>
+                        </div>
                       ) : toolName === 'createDocument' ? (
                         <DocumentPreview isReadonly={isReadonly} args={args} />
                       ) : toolName === 'updateDocument' ? (
@@ -195,6 +200,25 @@ const PurePreviewMessage = ({
                     <div key={toolCallId}>
                       {toolName === 'getWeather' ? (
                         <Weather weatherAtLocation={result} />
+                      ) : toolName === 'searchFlights' ? (
+                        result.success ? (
+                          <FlightResults
+                            searchParameters={result.searchParameters}
+                            priceInsights={result.priceInsights}
+                            bestFlights={result.bestFlights}
+                            otherFlights={result.otherFlights}
+                            totalResults={result.totalResults}
+                            searchUrl={result.searchUrl}
+                          />
+                        ) : (
+                          <div className="p-4 bg-red-50 border border-red-200 rounded-lg">
+                            <div className="text-red-800 font-medium">Error searching flights</div>
+                            <div className="text-red-600 text-sm mt-1">{result.error}</div>
+                            {result.suggestions && (
+                              <div className="text-red-600 text-sm mt-2">{result.suggestions}</div>
+                            )}
+                          </div>
+                        )
                       ) : toolName === 'createDocument' ? (
                         <DocumentPreview
                           isReadonly={isReadonly}
