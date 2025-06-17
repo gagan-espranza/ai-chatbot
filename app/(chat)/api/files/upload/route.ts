@@ -1,8 +1,8 @@
-import { put } from '@vercel/blob';
 import { NextResponse } from 'next/server';
 import { z } from 'zod';
 
 import { auth } from '@/app/(auth)/auth';
+import { supabase } from '@/lib/supabase';
 
 // Use Blob instead of File since File is not available in Node.js environment
 const FileSchema = z.object({
@@ -51,15 +51,39 @@ export async function POST(request: Request) {
     const fileBuffer = await file.arrayBuffer();
 
     try {
-      const data = await put(`${filename}`, fileBuffer, {
-        access: 'public',
-      });
+      // Generate unique filename to avoid collisions
+      const uniqueFilename = `${Date.now()}-${filename}`;
+      
+      const { data, error } = await supabase.storage
+        .from('chat-files')
+        .upload(uniqueFilename, fileBuffer, {
+          contentType: file.type,
+          cacheControl: '3600',
+          upsert: false
+        });
 
-      return NextResponse.json(data);
+      if (error) {
+        console.error('Supabase upload error:', error);
+        return NextResponse.json({ error: 'Upload failed' }, { status: 500 });
+      }
+
+      // Get public URL for the uploaded file
+      const { data: { publicUrl } } = supabase.storage
+        .from('chat-files')
+        .getPublicUrl(data.path);
+
+      return NextResponse.json({
+        url: publicUrl,
+        pathname: data.path,
+        size: file.size,
+        uploadedAt: new Date().toISOString()
+      });
     } catch (error) {
+      console.error('Upload error:', error);
       return NextResponse.json({ error: 'Upload failed' }, { status: 500 });
     }
   } catch (error) {
+    console.error('Request processing error:', error);
     return NextResponse.json(
       { error: 'Failed to process request' },
       { status: 500 },
